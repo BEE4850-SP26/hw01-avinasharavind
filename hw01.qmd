@@ -41,7 +41,7 @@ format-links: [pdf]
 freeze: false
 ---
 ::: {.callout-note}
-All of the code used in this homework is accessible in both the hw01.qmd and hw01.ipynb files in my GitHub repository. I used the Jupyter notebook to write the scripts (to more easily re-run and debug) before moving finalized code to the Quarto file to generate this pdf, and so the same code is included in both files. 
+All of the code used in this homework is accessible in the hw01.qmd file in my GitHub repository.
 :::
 
 ```{julia}
@@ -188,7 +188,7 @@ _Plot the number of deaths versus the temperature. Describe any patterns that yo
 ```{julia}
 #| echo: false 
 #| label: fig-chicago-deaths-temp
-#| fig-cap: "Scatterplot of daily deaths and temperature in Chicago from 01-01-1987 to 12-31-2000."
+#| fig-cap: "Scatterplot of daily deaths and temperature in Chicago from 1987 to 2000."
 
 plot(chicago.tmpd, chicago.death, st=:scatter, label="Daily Deaths", xlabel="Temperature (°F)", ylabel="Deaths", title="Chicago Deaths vs. Temperature")
 ```
@@ -216,65 +216,163 @@ I think date has a clearer influence on the number of deaths. While there does a
 ### Problem 3.1
 
 ::: {.cell .markdown}
-Load the data file and produce the following summary statistics for the day (not the date) of full flowering (you can do this using built-in functions as available in the language you are using):
+_Load the data file and produce the following summary statistics for the day (not the date) of full flowering (you can do this using built-in functions as available in the language you are using):_
 
-1. Minimum, 25th percentile, median, 75th percentile, and maximum;
-2. Mean;
-3. Number of missing data entries (`NA`s).
+1. _Minimum, 25th percentile, median, 75th percentile, and maximum;_
+2. _Mean;_
+3. _Number of missing data entries (`NA`s)._
 
-Why would it not make sense to calculate these summary statistics for the date column?
+_Why would it not make sense to calculate these summary statistics for the date column?_
 :::
+
+```{julia}
+#| echo: false
+blossoms = DataFrame(load("data/kyoto.csv"))
+
+describe(blossoms, :min, :q25, :median, :q75,:max, :mean, :nmissing)
+```
+
+Since each month in the Gregorian calendar only has 28, 29, 30, or 31 days, the values in the date column do not come from a continuous set of integers from 101 to 1299 but instead 101 to 131 before a jump to 201. As such, summary statistics may not accurately summarize the dates of bloom.
+
+```{=latex}
+\newpage
+```
 
 ### Problem 3.2
 
+_Plot the day of flowering against the year. Add horizontal lines showing the mean date of flowering as well as the 25th and 75th percentiles.  Do you see any trends or patterns in the data?_
 
-Plot the day of flowering against the year. Add horizontal lines showing the mean date of flowering as well as the 25th and 75th percentiles.  Do you see any trends or patterns in the data?
+```{julia}
+#| echo: false 
+#| label: fig-bloom-yearly
+#| fig-cap: "Scatterplot of cherry blossom flowering date verus year in Kyoto from A.D. 801 to 2015. Horizontal dashed lines indicate 25th (red) and 75th (green) percentiles."
+
+plot(blossoms."Year.AD", blossoms."Flowering.DOY", st=:scatter, legend=false, xlabel="Year (A.D.)", ylabel="Flowering Date (Days from 01-01)", title="Kyoto Cherry Blossom Dates")
+plot!(blossoms."Year.AD", [100], st=:hline, ls=:dash)
+plot!(blossoms."Year.AD", [109], st=:hline, ls=:dash)
+```
+
+Overall, there is not much of a pattern or trend in the data, with a variety of early or late blooms throughout the historical period. However, at the very end of the data, the range of blossom dates appears to narrow significanatly, with fewer very early and very late blooms. There also appears to be a bit of a negative trend in this period, towards an earlier mean flowering date. Towards the very end of the period, many more flowering dates are below the 25th percentile, and almost none are above the 75th percentile.
+
+```{=latex}
+\newpage
+```
 
 # Problem 4 (5 points)
 
-::: {.cell .markdown}
-
-A scientific funding agency receives 200 proposals in response to a call. The panel is asked to evaluate each proposal on two criteria:  scientific rigor and potential impact (or "newsworthiness"). After standardizing each of these scores to independently follow a standard normal distribution ($\text{Normal}(0, 1)$), the two standardized scores are summed to get the total score for the proposal. Based on these total scores, the top 10% of the proposals are selected for funding.
-
-A researcher who is studying the relationship between rigor and impact has used data on the funded proposals to claim high-impact proposals are necessarily less rigorous, and indeed found a statistically significant negative correlation between the rigor and impact scores for the funded proposals. You are more skeptical and believe this effect is an artifact from the selection process, which would make the claim a bit ironic.
-
-:::
-
 ### Problem 4.1
 
-Create a generative model for the grant-selection procedure under the null assumption of no correlation between rigor and impact. You can sample rigor and impact scores directly from $\text{Normal}(0, 1)$.  Generate 1,000 datasets using this model and flag the proposals which would be funded in each. Plot a histogram of the correlations between rigor and data for (a) the funded proposals and (b) the overall pool. What do you observe?
+_Create a generative model for the grant-selection procedure under the null assumption of no correlation between rigor and impact. You can sample rigor and impact scores directly from $\text{Normal}(0, 1)$.  Generate 1,000 datasets using this model and flag the proposals which would be funded in each. Plot a histogram of the correlations between rigor and data for (a) the funded proposals and (b) the overall pool. What do you observe?_
+
+```{julia}
+#| echo: false
+#| output: false
+all_cors = []
+funded_cors = []
+
+for i = 1:1000
+    proposals = DataFrame(rigor=randn(200), impact=randn(200))
+    proposals[!, :score] = proposals.rigor+proposals.impact
+    q90 = percentile(proposals.score, 90)
+    proposals[!, :accepted] = proposals.score .>= [q90]
+    correlation_all = cor(Matrix(proposals[:,1:2]))[1,2]
+    correlation_accepted = cor(Matrix(proposals[proposals.accepted .== true, 1:2]))[1,2]
+
+    append!(all_cors, [correlation_all])
+    append!(funded_cors, [correlation_accepted])
+end
+```
+
+```{julia}
+#| echo: false 
+#| label: fig-correlation-accepted
+#| fig-cap: "Histogram of Rigor-Impact Correlations for 1000 simulated grant proposals of 200 applications each, with only the funded applications (top 10%) included."
+plot(funded_cors, st=:histogram, legend=false, xlabel="Rigor/Impact Correlation", ylabel="Count", title="Rigor/Impact Correlations for Funded Proposals")
+```
+
+```{julia}
+#| echo: false 
+#| label: fig-correlation-all
+#| fig-cap: "Histogram of Rigor-Impact Correlations for 1000 simulated grant proposals of 200 applications each. All applications included."
+plot(all_cors, st=:histogram, legend=false, xlabel="Rigor/Impact Correlation", ylabel="Count", title="Rigor/Impact Correlations for All Proposals")
+```
+
+Among the funded applications in @fig-correlation-accepted, all have a negative rigor-impact correlation, with the peak of the sample distribution at around -0.8, thus confirming the researcher's findings of a negative correlation for the funded proposals. However, the researcher's claim was that **all** high-impact proposals were necessarily less rigorous, which would imply a similar negative correlation among all proposals. The sample distribution in @fig-correlation-all is nearly zero-centered and is visually similar to the Normal distribution, suggesting there is no strong correlation between rigor and impact among the general pool of proposals, suggesting the researcher's claim is incorrect.
+
+```{=latex}
+\newpage
+```
 
 ### Problem 4.2
 
-Explain why, when conditioning on selection for funding, there might be a negative correlation between rigor and impact even if there none generally exists.
+_Explain why, when conditioning on selection for funding, there might be a negative correlation between rigor and impact even if there none generally exists._
 
+Since both rigor and impact scores are drawn from a normally distributed population, there will be some proposals that score highly on both metrics, some that score poorly on both, some that score highly on one but not the other, and some that score near the mean on one or both. As such, the correlation between rigor and impact across any set of 200 funding proposals will depend on exactly how many proposals fall into the above categories; that is, it will look relatively random, explaining why @fig-correlation-all looks similar to a normal distribution. However, when controlling for only the top 10% of total scores in each set, the proposals that scored poorly on either metric are likely to be removed from the subset, leaving only proposals that did strongly on both or strongly on one and near-average on another. For most of these proposals, one metric performed better than the other, and so amongst the set of funded proposals, an increase in rigor appears to be correlated with a decrease in rigor and vice-versa. Thus, the correlation amongst funded proposals is likely to be negative, leading to the distribution in @fig-correlation-accepted.
 
-::: {.callout-important}
-## Selection-Distortion Effects
-
-These **selection-distortion effects** are pretty common in observational data, going back to [work by Dawes in the 1970s on the lack of predictive ability of admission variables on student success](https://www.science.org/doi/abs/10.1126/science.187.4178.721) and including [studies claiming to identify a causal fingerprint of genes on outcomes](https://www.nature.com/articles/s41598-021-89020-x).
-
-This is, of course, just one example of how not thinking carefully about data-generating processes can fundamentally contaminate statistical analyses, emphasizing that **data do not have meaning absent a model for how they were generated**.
-:::
-
-
+```{=latex}
+\newpage
+```
 
 # Problem 5 (5 points)
 
-::: {.cell .markdown}
-
-You are trying to detect how prevalent cheating was on an exam. You are skeptical of the efficacy of just asking the students if they cheated. You are also concerned about privacy --- your goal is not to punish individual students, but to see if there are systemic problems that need to be addressed. Someone proposes the following interview procedure, which the class agrees to participate in:
-
-> Each student flips a fair coin, with the results hidden from the interviewer. The student answers honestly if the coin comes up heads. Otherwise, if the coin comes up tails, the student flips the coin again, and answers "I did cheat" if heads, and "I did not cheat", if tails.
-
-You have a hypothesis that cheating was not prevalent, and the proportion of cheaters was no more than 5% of the class; in other words, we expect 5 "true" cheaters out of a class of 100 students. Our TA is more jaded and thinks that cheating was more rampant, and that 30% of the class cheated. The proposed interview procedure is noisy: the interviewer does not know if an admission means that the student cheated, or the result of a heads. However, it gives us a data-generating process that we can model and analyze for consistency with our hypothesis and that of the TA.
-
-:::
-
 ### Problem 5.1
 
-Derive and code a simulation model for the above interview procedure given a "true" probability of cheating $p$. Simulate your model (for a class of 100 students) 50,000 times under your hypothesis of 5% cheating, the TA's hypothesis of 30% cheating, and plot the resulting datasets.
+_Derive and code a simulation model for the above interview procedure given a "true" probability of cheating $p$. Simulate your model (for a class of 100 students) 50,000 times under your hypothesis of 5% cheating, the TA's hypothesis of 30% cheating, and plot the resulting datasets._
+
+```{julia}
+#| echo: false
+#| output: false
+yes_counts_5 = []
+for j = 1:50000
+    ncheated = 0
+    for i = 1:100
+        cf1 = rand((1,2))
+        if cf1 == 1 #Heads
+            cheating = rand(1:20)
+            if cheating == 20
+                ncheated += 1
+            end
+        elseif cf1 == 2 #tails
+            cf2 = rand((1,2))
+            if cf2 == 1 #Heads
+                ncheated += 1
+            end
+        end
+    end
+    append!(yes_counts_5, [ncheated])
+end
+
+yes_counts_30 = []
+for j = 1:50000
+    ncheated = 0
+    for i = 1:100
+        cf1 = rand((1,2))
+        if cf1 == 1 #Heads
+            cheating = rand(1:10)
+            if cheating <= 3
+                ncheated += 1
+            end
+        elseif cf1 == 2 #tails
+            cf2 = rand((1,2))
+            if cf2 == 1 #Heads
+                ncheated += 1
+            end
+        end
+    end
+    append!(yes_counts_30, [ncheated])
+end
+```
+
+```{julia}
+#| echo: false
+#| label: fig-cheating
+#| fig-cap: "Histograms of cheating confession coin-flip method simulations. Top (blue) is under the Teacher's 5% cheating rate hypothesis, while bottom (orange) is under the TA's 30% cheating rate hypothesis."
+p1 = plot(yes_counts_5, st=:histogram, legend=false, xlabel=""""Yes, I Cheated" Responses: 5% (Teacher) Hypothesis""", ylabel="Count", xlim=(0,60))
+p2 = plot(yes_counts_30, st=:histogram, legend=false, xlabel=""""Yes, I Cheated" Responses: 30% (TA) Hypothesis""", ylabel="Count", color="orange", xlim=(0,60))
+plot(p1, p2, layout=(2,1), suptitle="Simulation of Cheating Confessions")
+```
 
 ### Problem 5.2
+_How many "Yes, I cheated" answers do you think you'd need to see to feel confident concluding that the TA was right and why? You don't need to do a formal analysis, but can reason about this based on your plots._
 
-How many "Yes, I cheated" answers do you think you'd need to see to feel confident concluding that the TA was right and why? You don't need to do a formal analysis, but can reason about this based on your plots.
+Based on @fig-cheating, I would want to see at least 35 "Yes, I cheated" responses before concluding that the TA was right. At 35 Yes responses, there are a relatively low number of simulations from the 5% hypothesis, and a relatively high number from the 30% hypothesis. If I wanted to be even more confident in the TA's hypothesis, I would raise that number to 40 Yes responses, which very few simulations at the 5% level exceeded but roughly half of the simulations at the 30% level exceeded.
