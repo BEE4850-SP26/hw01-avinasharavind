@@ -1,6 +1,8 @@
 ---
 title: "Homework 1: Thinking About Data"
-subtitle: "BEE 4850/5850"
+subtitle: "BEE 4850"
+date: "02-06-2026"
+author: "Avinash Aravind, aa2476"
 format:
     html:        
         warning: true
@@ -10,6 +12,10 @@ format:
         warning: true
         error: true
         keep-tex: true
+        fig-pos: "h"
+        toc: true
+        toc-depth: 3
+        toc-title: Contents
         fig-format: svg    
         include-in-header: 
             text: |
@@ -24,6 +30,7 @@ format:
                 breaklines
                 % Note: setting commandchars=\\\{\} here will cause an error 
                 }
+        margin-bottom: "30mm"
     ipynb:
         warning: true
         error: true
@@ -33,50 +40,12 @@ julia:
 format-links: [pdf]
 freeze: false
 ---
-
-::: {.content-visible when-format="ipynb"}
-**Name**:
-
-**ID**:
-:::
-
-::: {.callout-important icon=false}
-### Due Date
-
-Friday, 2/6/26, 9:00pm
-:::
-
-::: {.content-visible unless-format="ipynb"}
-:::{.callout-tip}
-
-You can find a Jupyter notebook, data, and a Julia 1.11.5 environment in [the homework's Github repository]({{< var github_org.repo >}}/hw01). You should feel free to clone the repository and switch the notebook to another language, or to download the relevant data file(s) and solve the problems creating your own notebook or without using a notebook at all. In either of these cases, if you using a different environment, you will be responsible for setting up an appropriate package environment.
-
-Regardless of your solution method, make sure to include your name and NetID on your solution PDF for submission to Gradescope.
-:::
-:::
-
-## Overview
-
-::: {.cell .markdown}
-
-### Instructions
-
-The goal of this homework assignment is to introduce you to simulation-based data analysis. 
-
-* Problem 1 asks you to explore whether a difference between data collected from two groups might be statistically meaningful or the result of noise. This problem repeats the analysis from [Statistics Without The Agonizing Pain](https://www.youtube.com/watch?v=5Dnw46eC-0o) by John Rauser (which is a neat watch!).
-* Problem 2 asks you to load and conduct an exploratory analysis of an air quality and health dataset.
-* Problem 3 asks you to visualize and conduct an exploratory analysis of a cherry blossom dataset.
-* Problem 4 asks you to explore the impacts of selection biases on statistical relationships.
-:::
-
-::: {.cell .markdown}
-### Load Environment
-
-The following code loads the environment and makes sure all needed packages are installed. This should be at the start of most Julia scripts.
-
+::: {.callout-note}
+All of the code used in this homework is accessible in both the hw01.qmd and hw01.ipynb files in my GitHub repository. I used the Jupyter notebook to write the scripts (to more easily re-run and debug) before moving finalized code to the Quarto file to generate this pdf, and so the same code is included in both files. 
 :::
 
 ```{julia}
+#| echo: false
 #| output: false
 
 import Pkg
@@ -84,13 +53,10 @@ Pkg.activate(@__DIR__)
 Pkg.instantiate()
 ```
 
-::: {.cell .markdown}
-The following packages are included in the environment (to help you find other similar packages in other languages). The code below loads these packages for use in the subsequent notebook (the desired functionality for each package is commented next to the package).
-
-:::
 
 ```{julia}
 #| output: false
+#| echo: false
 
 using Random # random number generation and seed-setting
 using DataFrames # tabular data structure
@@ -101,42 +67,22 @@ using StatsBase # statistical quantities like mean, median, etc
 using StatsPlots # some additional statistical plotting tools
 ```
 
-## Problems
-
 ::: {.cell .markdown}
-
-### Problem 1 (7 points)
-
-The underlying question we would like to address is: what is the influence of drinking beer on the likelihood of being bitten by mosquitoes? There is a mechanistic reason why this might occur: mosquitoes are attracted by changes in body temperature and released CO~2~, and it might be that drinking beer induces these changes. We'll analyze this question using (synthetic) data which separates an experimental population into two groups, one which drank beer and the other which drank only water.
-
-First, we'll load data for the number of bites reported by the participants who drank beer. This is in a comma-delimited file, `data/bites.csv` (which is grossly overkill for this assignment). Each row contains two columns: the group (`beer` and `water`) the person belonged to and the number of times that person was bitten.
-
-In Julia, we can do this using [`CSVFiles.jl`](https://github.com/queryverse/CSVFiles.jl), which will read in the `.csv` file into a [`DataFrame`](https://dataframes.juliadata.org/stable/), which is a typical data structure for tabular data (and equivalent to a Pandas `DataFrame` in Python or a `dataframe` in R).
-
+# Problem 1 (7 points)
 :::
 
 ```{julia}
 #| output: false
+#| echo: false
 data = DataFrame(load("data/bites.csv")) # load data into DataFrame
 
 # print data variable (semi-colon suppresses echoed output in Julia, which in this case would duplicate the output)
 @show data; 
 ```
 
-::: {.cell .markdown}
-
-How can we tell if there's a meaningful difference between the two groups? Naively, we might just look at the differences in group means.
-:::
-
-::: {.callout-tip}
-## Broadcasting
-
-The subsetting operations in the below code use `.==`, which "broadcasts" the element-wise comparison operator == across every element. The decimal in front of `==` indicates that this should be used element-wise (every pair of elements compared for equality, returning a vector of `true` or `false` values); otherwise Julia would try to just check for vector equality (returning a single `true` or `false` value).
-
-Broadcasting is a very specific feature of Julia, so this syntax would look different in a different programming language.
-:::
-
 ```{julia}
+#| echo: false
+#| output: false
 # split data into vectors of bites for each group
 beer = data[data.group .== "beer", :bites]
 water = data[data.group .== "water", :bites]
@@ -145,94 +91,129 @@ observed_difference = mean(beer) - mean(water)
 @show observed_difference;
 ```
 
-::: {.cell .markdown}
+### Problem 1.1
 
-This tells us that, on average, the participants in the experiment who drank beer were bitten approximately 4.4 more times than the participants who drank water! Does that seem like a meaningful difference, or could it be the result of random chance? 
+_Conduct the above procedure to generate 50,000 simulated datasets under the skeptic's hypothesis. Plot a histogram of the results and add a dashed vertical line to show the experimental difference._
 
-We will use a *simulation* approach to address this question, as follows. 
+```{julia}
+#| echo: false
+#| label: fig-mosquito-hist
+#| fig-cap: "Histogram of Mean Differences for 50000 shuffled simulations of mosquito bite data for beer vs. water drinkers."
 
-* Suppose someone is skeptical of the idea that drinking beer could result in a higher attraction to mosquitoes, and therefore more bites. To this skeptic, the two datasets are really just different samples from the same underlying population of people getting bitten by mosquitoes, rather than two different populations with different propensities for being bitten. This is the skeptic's *hypothesis*, versus our hypothesis that drinking beer changes body temperature and CO~2~ release sufficiently to attract mosquitoes.
-* If the skeptic's hypothesis is true, then we can "shuffle" all of the measurements between the two datasets and re-compute the differences in the means. After repeating this procedure a large number of times, we would obtain a distribution of the differences in means under the assumption that the skeptic's hypothesis is true. 
-* Comparing our experimentally-observed difference to this distribution, we can then evaluate the consistency of the skeptic's hypothesis with the experimental results.
+sim_diffs = []
+for i in 1:50000
+    biteshuffle = shuffle(data[!, :bites])
+    datashuffle = DataFrame(group=data[!, :group], bites=biteshuffle)
 
-:::
+    beer = datashuffle[datashuffle.group .== "beer", :bites]
+    water = datashuffle[datashuffle.group .== "water", :bites]
 
-::: {.callout-important}
-## Why Do We Call This A Simulation-Based Approach?
+    shuffle_difference = mean(beer) - mean(water)
+    append!(sim_diffs, [shuffle_difference])
+end
 
-This is a simulation-based approach because the "shuffling" is a non-parametric way of generating new samples from the underlying distribution (more on this later!).
+plot(sim_diffs, st=:histogram, label="Shuffled Differences", xlabel="Beer-Water Mean Difference", ylabel="Count", title="Shuffle Simulations of Mosquito Bites")
+plot!([observed_difference], st=:vline , ls=:dash, label="Observed Difference")
+```
 
-The alternative to this approach is to use a statistical test, such as a [t-test](https://en.wikipedia.org/wiki/Student%27s_t-test), which [may have other assumptions](https://en.wikipedia.org/wiki/Student%27s_t-test#Assumptions) which may not be appropriate for this setting, particularly given the seemingly small sample sizes.
-:::
+### Problem 1.2
 
-#### Problem 1.1
+_Draw conclusions about the plausibility of the skeptic's hypothesis that there is no difference between groups. Feel free to use any quantitative or qualitative assessments of your simulations and the observed difference._
 
-Conduct the above procedure to generate 50,000 simulated datasets under the skeptic's hypothesis. Plot a histogram of the results and add a dashed vertical line to show the experimental difference (if you are using Julia, feel free to look at the [Making Plots with Julia tutorial](https://viveks.me/simulation-data-analysis/tutorials/julia-plots.html) on the class website). 
-
-
-#### Problem 1.2
-
-Draw conclusions about the plausibility of the skeptic's hypothesis that there is no difference between groups. Feel free to use any quantitative or qualitative assessments of your simulations and the observed difference.
-
+Based on the simulation results, the skeptic's hypothesis does not appear very plausible. As would be expected from a random shuffle, the difference between the randomized "beer" and "water" category means is centered around zero, with the majority of simulations having a mean difference between -2 and 2. However, the observed difference is well over 4, and there are only a very small number of shuffles with a mean difference that large. It is unlikely that such a large difference would be drawn from this distribution of random simulations, suggesting that there is a difference in mosquito bites for beer drinkers versus water drinkers.
 
 
+# Problem 2 (5 points)
 
-### Problem 2 (5 points)
-
-::: {.cell .markdown}
-
-Let's examine the influence of air pollution and temperature on mortality in Chicago, IL.  The `data/chicago.csv` dataset (originally from the [`gamair` `R` package](https://cran.r-project.org/web/packages/gamair/index.html)) contains data on the relationship between environmental conditions (temperature and air quality) and deaths in Chicago from 1987--2000. The dataset contains the following variables:
-
-1. The number of non-accidental deaths each day (`deaths`);
-2. The median density over the city of PM10 (large particulate matter) particles (`pm10median`);
-3. The median density over the city of PM 2.5 (small particulate matter) particles (`pm25median`);
-4. The median concentration of ozone (O[3]) (`o3median`);
-5. The median concentration of sulfur dioxide (SO[2]) (`so2median`);
-6. The time in days (`time`);
-7. The daily mean temperature (`tmpd`).
-
-:::
-
-#### Problem 2.1 
+### Problem 2.1 
 
 ::: {.cell .markdown}
 
-Load the dataset and compute the following summary statistics for each column (you can do this using built-in functions as available in the language you are using):
+_Load the dataset and compute the following summary statistics for each column (you can do this using built-in functions as available in the language you are using):_
 
-1. Minimum, 25th percentile, median, 75th percentile, and maximum;
-2. Mean;
-3. Number of missing data entries (`NA`s).
+1. _Minimum, 25th percentile, median, 75th percentile, and maximum;_
+2. _Mean;_
+3. _Number of missing data entries (`NA`s)._
 
-What are the units for the temperatures? Explain why there are so many negative values for the pollution variables.
-
-
-#### Problem 2.2
-
-Plot the number of deaths versus the time (convert the time to the calendar date). Describe any patterns that you see. 
-
-#### Problem 2.3
-
-Plot the number of deaths versus the temperature. Describe any patterns that you see.
-
-#### Problem 2.4
-
-What do you think has a clearer influence on the number of deaths: date or temperature?
-
-### Problem 3 (3 points)
-
-::: {.cell .markdown}
-
-Cherry trees flower in the spring, but the opening of their blossoms requires warm temperatures and is delayed by cold. As a result, cherry blossom flowering dates are a good proxy for springtime temperatures. Due to the importance of cherry blossoms in Japanese culture, we have an (incomplete) record of full blossom dates going back to around 800 CE, which was developed by Prof. Yasuyuki Aono and several colleagues[^1] and used for temperature reconstructions. 
-
-This blossom date data is provided in `data/kyoto.csv`^[The full data set from Prof. Aono has much more information, such as the data sources and the type of historical evidence]. The three columns are 
-
-1. the year (CE),
-2. the numerical day of the year full flowering (*e.g.* Jan. 1 is day 1, Dec. 31 is day 365 or 366);
-3. the date in the Gregorian calendar (*e.g.* Mar. 15 is 0315).
-
+_What are the units for the temperatures? Explain why there are so many negative values for the pollution variables._
 :::
 
-#### Problem 3.1
+```{julia}
+#| echo: false
+chicago = DataFrame(load("data/chicago.csv"))
+
+describe(chicago, :min, :q25, :median, :q75,:max, :mean, :nmissing)
+```
+::: {.cell .markdown}
+
+The temperatures are in units of degrees Fahrenheit, ranging from approximately -15°F to approximately 90°F, a typical range for the Midwestern United States. 
+I was originally confused as to why there were negative values for the pollution variables, so I did a bit of online searching and found the National Ambient Air Quality Standards[^1] from the U.S. Environmental Protection Agency. These standards set reference values for what "acceptable" values for air pollutants are based on public health research. Looking at the values for this standard, it seems the Chicago pollution measurements are reported in terms of their difference to this standard, with negative values below the standard and positive values above the standard.
+:::
+
+[^1]: <https://www.epa.gov/criteria-air-pollutants/naaqs-table>
+
+```{=latex}
+\newpage
+```
+
+### Problem 2.2
+
+_Plot the number of deaths versus the time (convert the time to the calendar date). Describe any patterns that you see._
+
+```{julia}
+#| echo: false 
+#| label: fig-chicago-deaths-time
+#| fig-cap: "Plot of daily deaths in Chicago from 01-01-1987 to 12-31-2000."
+using Dates
+ndays = length(chicago.time)
+dates = []
+for i = 0:ndays-1
+    newdate = [Date("1987-01-01", dateformat"y-m-d")+Dates.Day(i)]
+    append!(dates, newdate)
+end
+
+plot(dates, chicago.death, st=:line, label="Daily Deaths", xlabel="Date", ylabel="Deaths", title="Chicago Daily Deaths, 1987-2000")
+```
+
+::: {.cell .markdown}
+There does not appear to be any significant increase or decrease in the number of deaths in Chicago throughout the 13-year period. Typically, the number of daily deaths appears to peak in the winter, decrease through the spring, reach a minimum in the summer, and then increases through the fall. Apart from a small number days, including one day with a daily total of over 400 deaths, the daily counts typically range in the low 100s, which matches what we see from the summary statistics with a q25 of 105 and a q75 of 124.
+:::
+
+```{=latex}
+\newpage
+```
+### Problem 2.3
+
+_Plot the number of deaths versus the temperature. Describe any patterns that you see._
+```{julia}
+#| echo: false 
+#| label: fig-chicago-deaths-temp
+#| fig-cap: "Scatterplot of daily deaths and temperature in Chicago from 01-01-1987 to 12-31-2000."
+
+plot(chicago.tmpd, chicago.death, st=:scatter, label="Daily Deaths", xlabel="Temperature (°F)", ylabel="Deaths", title="Chicago Deaths vs. Temperature")
+```
+
+There is a slightly negative correlation between temperature and number of deaths, with almost no days having less than 100 deaths when the temperature is below 20°F but many such days when the temperature is above 60°F. However, the difference between daily deaths when the temperature is below freezing versus very warm does not appear to be large. However, the high outliers in terms of number of deaths all occur when the average daily temperature was extremely high, which suggested to me that this was associated with some kind of heat wave. Matching with the dates in @fig-chicago-deaths-time, I was able to find information about the July 1995 Chicago Heat Wave, which lead to over 500 deaths in the city of Chicago and caused heat index values of above 115°F.[^2]
+
+[^2]: <https://www.weather.gov/lot/1995_HeatWave>
+
+```{=latex}
+\newpage
+```
+
+### Problem 2.4
+
+_What do you think has a clearer influence on the number of deaths: date or temperature?_  
+
+I think date has a clearer influence on the number of deaths. While there does appear to be a slight negative correlation in the temperature data (@fig-chicago-deaths-temp), the magnitude of the influence is difficult to discern. However, in @fig-chicago-deaths-time, the oscillating pattern of increasing and decreasing deaths with season is easily evident, and so I believe the date can be more easily used to understand the number of deaths.
+
+```{=latex}
+\newpage
+```
+
+# Problem 3 (3 points)
+
+### Problem 3.1
 
 ::: {.cell .markdown}
 Load the data file and produce the following summary statistics for the day (not the date) of full flowering (you can do this using built-in functions as available in the language you are using):
@@ -244,12 +225,12 @@ Load the data file and produce the following summary statistics for the day (not
 Why would it not make sense to calculate these summary statistics for the date column?
 :::
 
-#### Problem 3.2
+### Problem 3.2
 
 
 Plot the day of flowering against the year. Add horizontal lines showing the mean date of flowering as well as the 25th and 75th percentiles.  Do you see any trends or patterns in the data?
 
-### Problem 4 (5 points)
+# Problem 4 (5 points)
 
 ::: {.cell .markdown}
 
@@ -259,11 +240,11 @@ A researcher who is studying the relationship between rigor and impact has used 
 
 :::
 
-#### Problem 4.1
+### Problem 4.1
 
 Create a generative model for the grant-selection procedure under the null assumption of no correlation between rigor and impact. You can sample rigor and impact scores directly from $\text{Normal}(0, 1)$.  Generate 1,000 datasets using this model and flag the proposals which would be funded in each. Plot a histogram of the correlations between rigor and data for (a) the funded proposals and (b) the overall pool. What do you observe?
 
-#### Problem 4.2
+### Problem 4.2
 
 Explain why, when conditioning on selection for funding, there might be a negative correlation between rigor and impact even if there none generally exists.
 
@@ -278,7 +259,7 @@ This is, of course, just one example of how not thinking carefully about data-ge
 
 
 
-### Problem 5 (5 points)
+# Problem 5 (5 points)
 
 ::: {.cell .markdown}
 
@@ -290,19 +271,10 @@ You have a hypothesis that cheating was not prevalent, and the proportion of che
 
 :::
 
-#### Problem 5.1
+### Problem 5.1
 
 Derive and code a simulation model for the above interview procedure given a "true" probability of cheating $p$. Simulate your model (for a class of 100 students) 50,000 times under your hypothesis of 5% cheating, the TA's hypothesis of 30% cheating, and plot the resulting datasets.
 
-#### Problem 5.2
+### Problem 5.2
 
 How many "Yes, I cheated" answers do you think you'd need to see to feel confident concluding that the TA was right and why? You don't need to do a formal analysis, but can reason about this based on your plots.
-
-## References
-
-
-[^1]: Aono, Y., & Omoto, Y. (1993). Variation in the March mean temperature deduced from cherry blossom in Kyoto since the 14th century. Journal of Agricultural Meteorology, 48(5), 635–638. <https://doi.org/10.2480/agrmet.48.635>
-
-    Aono, Y., & Omoto, Y. (1994). Estimation of temperature at Kyoto since the 11th century. Using flowering data of cherry trees in old documents. Journal of Agricultural Meteorology, 49(4), 263–272. <https://doi.org/10.2480/agrmet.49.263>
-
-    Aono, Y., & Kazui, K. (2008). Phenological data series of cherry tree flowering in Kyoto, Japan, and its application to reconstruction of springtime temperatures since the 9th century. International Journal of Climatology: A Journal of the Royal Meteorological Society, 28(7), 905–914. <https://doi.org/10.1002/joc.1594>
